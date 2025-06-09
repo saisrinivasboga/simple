@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List with Deadlines</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 520px;
+            margin: 48px auto;
+            background: #fff;
+            padding: 32px 36px 36px 36px;
+            border-radius: 18px;
+            box-shadow: 0 4px 24px rgba(80, 112, 255, 0.10);
+        }
+        h1 {
+            text-align: center;
+            color: #4f46e5;
+            letter-spacing: 2px;
+            margin-bottom: 24px;
+        }
+        form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 28px;
+        }
+        input[type="text"] {
+            flex: 2;
+            padding: 10px;
+            border: 1px solid #c7d2fe;
+            border-radius: 6px;
+            font-size: 1em;
+            background: #f1f5f9;
+        }
+        input[type="datetime-local"] {
+            flex: 1.5;
+            padding: 10px;
+            border: 1px solid #c7d2fe;
+            border-radius: 6px;
+            font-size: 1em;
+            background: #f1f5f9;
+        }
+        button {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 6px;
+            background: #6366f1;
+            color: #fff;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 2px 6px rgba(99,102,241,0.08);
+        }
+        button:hover {
+            background: #4338ca;
+            transform: translateY(-2px) scale(1.04);
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        .task {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f3f4f6;
+            margin-bottom: 14px;
+            padding: 16px 14px;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(99,102,241,0.04);
+            transition: background 0.2s, color 0.2s;
+            position: relative;
+        }
+        .task.overdue {
+            background: #ffeaea;
+            color: #d8000c;
+        }
+        .task.completed {
+            background: #e6fbe6;
+            color: #1a7f37;
+        }
+        .task.completed .info span:first-child {
+            text-decoration: line-through;
+            color: #1a7f37;
+        }
+        .task .info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .task .actions {
+            display: flex;
+            gap: 8px;
+        }
+        .task input[type="text"],
+        .task input[type="datetime-local"] {
+            margin-bottom: 4px;
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #c7d2fe;
+            background: #f1f5f9;
+        }
+        .tick-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            margin-right: 12px;
+            font-size: 1.3em;
+            color: #a3a3a3;
+            transition: color 0.2s, transform 0.1s;
+        }
+        .tick-btn.done {
+            color: #22c55e;
+            transform: scale(1.2);
+        }
+        .tick-btn:focus {
+            outline: none;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 12px 4vw 18px 4vw;
+            }
+            form {
+                flex-direction: column;
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fa-solid fa-list-check"></i> To-Do List</h1>
+        <form id="task-form">
+            <input type="text" id="task-input" placeholder="Add a new task..." required />
+            <input type="datetime-local" id="deadline-input" required />
+            <button type="submit"><i class="fa-solid fa-plus"></i> Add</button>
+        </form>
+        <ul id="task-list"></ul>
+    </div>
+    <script>
+        const taskForm = document.getElementById('task-form');
+        const taskInput = document.getElementById('task-input');
+        const deadlineInput = document.getElementById('deadline-input');
+        const taskList = document.getElementById('task-list');
+
+        let tasks = [];
+        let editIndex = null;
+
+        // Load tasks from localStorage
+        function loadTasks() {
+            const stored = localStorage.getItem('tasks');
+            if (stored) {
+                try {
+                    tasks = JSON.parse(stored);
+                } catch (e) {
+                    tasks = [];
+                }
+            }
+        }
+
+        // Save tasks to localStorage
+        function saveTasks() {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
+        function renderTasks() {
+            taskList.innerHTML = '';
+            const now = new Date();
+            tasks.forEach((task, idx) => {
+                const li = document.createElement('li');
+                let className = 'task';
+                if (task.completed) {
+                    className += ' completed';
+                } else if (new Date(task.deadline) < now) {
+                    className += ' overdue';
+                }
+                li.className = className;
+
+                // Tick button
+                const tickBtn = document.createElement('button');
+                tickBtn.className = 'tick-btn' + (task.completed ? ' done' : '');
+                tickBtn.innerHTML = task.completed ? '<i class="fa-solid fa-circle-check"></i>' : '<i class="fa-regular fa-circle"></i>';
+                tickBtn.title = task.completed ? 'Mark as not done' : 'Mark as done';
+                tickBtn.onclick = () => toggleDone(idx);
+
+                if (editIndex === idx) {
+                    // Edit mode
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'info';
+                    const editText = document.createElement('input');
+                    editText.type = 'text';
+                    editText.value = task.text;
+                    editText.id = 'edit-text';
+                    const editDeadline = document.createElement('input');
+                    editDeadline.type = 'datetime-local';
+                    editDeadline.value = task.deadline;
+                    editDeadline.id = 'edit-deadline';
+                    infoDiv.appendChild(editText);
+                    infoDiv.appendChild(editDeadline);
+
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'actions';
+                    const saveBtn = document.createElement('button');
+                    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save';
+                    saveBtn.onclick = () => saveEdit(idx);
+                    const cancelBtn = document.createElement('button');
+                    cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancel';
+                    cancelBtn.onclick = () => { editIndex = null; renderTasks(); };
+                    actionsDiv.appendChild(saveBtn);
+                    actionsDiv.appendChild(cancelBtn);
+
+                    li.appendChild(tickBtn);
+                    li.appendChild(infoDiv);
+                    li.appendChild(actionsDiv);
+                } else {
+                    // View mode
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'info';
+                    const textSpan = document.createElement('span');
+                    textSpan.textContent = task.text;
+                    const deadlineSpan = document.createElement('span');
+                    deadlineSpan.style.fontSize = '0.92em';
+                    deadlineSpan.style.color = '#888';
+                    deadlineSpan.textContent = 'Due: ' + new Date(task.deadline).toLocaleString();
+                    infoDiv.appendChild(textSpan);
+                    infoDiv.appendChild(deadlineSpan);
+
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'actions';
+                    const editBtn = document.createElement('button');
+                    editBtn.innerHTML = '<i class="fa-solid fa-pen"></i> Edit';
+                    editBtn.onclick = () => { editIndex = idx; renderTasks(); };
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i> Delete';
+                    deleteBtn.onclick = () => deleteTask(idx);
+                    actionsDiv.appendChild(editBtn);
+                    actionsDiv.appendChild(deleteBtn);
+
+                    li.appendChild(tickBtn);
+                    li.appendChild(infoDiv);
+                    li.appendChild(actionsDiv);
+                }
+                taskList.appendChild(li);
+            });
+            saveTasks(); // Save after rendering (any change)
+        }
+
+        function addTask(e) {
+            e.preventDefault();
+            const text = taskInput.value.trim();
+            const deadline = deadlineInput.value;
+            if (!text || !deadline) return;
+            tasks.push({ text, deadline, completed: false });
+            taskInput.value = '';
+            deadlineInput.value = '';
+            renderTasks();
+        }
+
+        function deleteTask(idx) {
+            tasks.splice(idx, 1);
+            editIndex = null;
+            renderTasks();
+        }
+
+        function saveEdit(idx) {
+            const newText = document.getElementById('edit-text').value.trim();
+            const newDeadline = document.getElementById('edit-deadline').value;
+            if (!newText || !newDeadline) return;
+            tasks[idx].text = newText;
+            tasks[idx].deadline = newDeadline;
+            editIndex = null;
+            renderTasks();
+        }
+
+        function toggleDone(idx) {
+            tasks[idx].completed = !tasks[idx].completed;
+            renderTasks();
+        }
+
+        // Check for overdue tasks every 30 seconds
+        setInterval(renderTasks, 30000);
+
+        taskForm.addEventListener('submit', addTask);
+        loadTasks(); // Load tasks on page load
+        renderTasks();
+    </script>
+</body>
+</html>
